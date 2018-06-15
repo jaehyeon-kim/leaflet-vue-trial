@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>Quick Start - Leaflet</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css" integrity="sha512-Rksm5RenBEKSKFjgI3a41vrjkw4EVPlJ3+OiI65vTjIdo9brlAacEuKOiQ5OFh7cOI1bkDwLqdLw3Zg0cRJAAQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.3.1/dist/leaflet.js" integrity="sha512-/Nsx9X4HebavoBvEBuyp3I7od5tA0UzAxs+j83KgC8PU0kgB4XiK4Lfe4y4cgBtaRJQEIFCW+oC506aPT2L1zw==" crossorigin=""></script>
+
+
+	
+</head>
+<body>
+
+
+
+<div id="mapid" style="width: 600px; height: 400px;"></div>
+<script>
+
+	var map = L.map('mapid').setView([-33.8339199536547, 151.06201171875], 8);
+
+	L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		maxZoom: 18,
+		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+		id: 'mapbox.streets'
+	}).addTo(map);
+
+	var LIcon = L.Icon.extend({
+		options: {
+			iconSize:     [28, 30], // size of the icon
+			iconAnchor:   [14, 30], // point of the icon which will correspond to marker's location
+			popupAnchor:  [0, -30] // point from which the popup should open relative to the iconAnchor			
+		}
+	})
+
+	var pngIcon = new LIcon({iconUrl: 'cserkesz_ikon.png'})
+	var svgIcon = new LIcon({iconUrl: 'spyhole.svg'})
+
+	// var pngIcon = L.icon({
+	// 	iconUrl: 'cserkesz_ikon.png',
+
+	// 	iconSize:     [32, 37], // size of the icon
+	// 	iconAnchor:   [16, 37], // point of the icon which will correspond to marker's location
+	// 	popupAnchor:  [0, -37] // point from which the popup should open relative to the iconAnchor
+	// });
+
+	// var svgIcon = L.icon({
+	// 	iconUrl: 'spyhole.svg',
+
+	// 	iconSize:     [32, 37], // size of the icon
+	// 	iconAnchor:   [16, 37], // point of the icon which will correspond to marker's location
+	// 	popupAnchor:  [0, -37] // point from which the popup should open relative to the iconAnchor
+	// });
+
+	L.marker([-33.8339199536547, 151.06201171875]).addTo(map).bindPopup('default!')
+	L.marker([-33.8339199536547, 150.5], {icon: pngIcon}).addTo(map).bindPopup('png icon!')
+	L.marker([-33.8339199536547, 150.06201171875], {icon: svgIcon}).addTo(map).bindPopup('svg icon!')//.openPopup();
+	//L.marker([-35.277272, 149.117136]).addTo(map).bindPopup('hello!')//.openPopup();
+
+	// var popup = L.popup();
+
+	// function onMapClick(e) {
+	// 	popup
+	// 		.setLatLng(e.latlng)
+	// 		.setContent("You clicked the map at " + e.latlng.toString())
+	// 		.openOn(mymap);
+	// }
+
+	// mymap.on('click', onMapClick);
+
+</script>
+
+
+
+</body>
+</html>
