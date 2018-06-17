@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>Quick Start - Leaflet</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css" integrity="sha512-Rksm5RenBEKSKFjgI3a41vrjkw4EVPlJ3+OiI65vTjIdo9brlAacEuKOiQ5OFh7cOI1bkDwLqdLw3Zg0cRJAAQ==" crossorigin=""/>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/11.1.0/nouislider.min.css"/>
+	<script src="https://unpkg.com/leaflet@1.3.1/dist/leaflet.js" integrity="sha512-/Nsx9X4HebavoBvEBuyp3I7od5tA0UzAxs+j83KgC8PU0kgB4XiK4Lfe4y4cgBtaRJQEIFCW+oC506aPT2L1zw==" crossorigin=""></script>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+		#overlay {
+			position: absolute;
+			z-index: 1000;
+			background: lightgoldenrodyellow;
+			padding: 10px;
+			right: 0;
+			margin: 10px; 
+			border-radius: 10px; 
+			box-shadow: 1px 1px grey; 
+			min-height: 200px;
+
+			/* bottom: 0;	 */
+		}
+		#overlay h2, #slide-in h2 {
+			margin: 0;
+			padding: 0;
+			margin-bottom: 10px;
+		}
+		#slide-in {
+			padding: 10px;
+			position: absolute;
+			width: 250px;
+			z-index: 1000;
+			background: white;
+			margin-left: -270px;
+			transition: 0.5s;
+		}
+		#slide-in.in {
+			margin-left: 0px;
+		}
+		#slider {
+			margin-top: 50px
+		}
+    </style>
+	
+</head>
+<body>
+
+<!-- <div id="mapid" style="width: 600px; height: 400px;"></div> -->
+<div id="slide-in">
+	<h2>More Information</h2>
+	<select id="country-select">
+		<option value="">[no country selected]</option>
+	</select>
+	<div id="country-info"></div>
+</div>
+<div id="overlay">
+	<h2>My Map</h2>
+	<div id="current_center"></div>
+	<h5>Search filter</h5>
+	<input id="search" type="text">
+	<br>
+	<button id="toggleLayer">Toggle</button>
+	<br>
+	<button id="advanced">Advanced Toggle</button>
+	<br>
+	<div id="slider"></div>
+</div>
+<div id="mapid" style="width: 100%;"></div>
+
+<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+<script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/11.1.0/nouislider.min.js'></script>
+<script src=''></script>
+<script>
+
+	$('#mapid').height(window.innerHeight)
+	$('#slide-in').height(window.innerHeight)
+	$(document).on('click', '#advanced', function() {
+		if($('#slide-in').hasClass('in')) {
+			$('#slide-in').removeClass('in')
+		} else {
+			$('#slide-in').addClass('in')
+		}
+	})
+
+	var map = L.map('mapid').setView([-33.8339199536547, 151.06201171875], 4);
+
+	L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		maxZoom: 18,
+		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+		id: 'mapbox.streets'
+	}).addTo(map);
+
+	var LIcon = L.Icon.extend({
+		options: {
+			iconSize:     [28, 30], // size of the icon
+			iconAnchor:   [14, 30], // point of the icon which will correspond to marker's location
+			popupAnchor:  [0, -30] // point from which the popup should open relative to the iconAnchor			
+		}
+	})
+
+	var svgIcon = new LIcon({iconUrl: 'spyhole.svg'})
+	var svgIconRed = new LIcon({iconUrl: 'spyhole-red.svg'})
+	// L.marker([-33.8339199536547, 150.06201171875], {icon: svgIcon}).addTo(map).bindPopup('svg icon!')//.openPopup();
+
+	////
+	var countriesGeoJSON = false
+	var earthquakeJSON = false
+	var earthquakePointsArray = []
+	var filters = {
+		text: '',
+		range: []
+	}
+	fetch('/countries.json', {
+		method: 'GET'
+	})
+	.then(response => response.json())
+	.then(json => {
+		console.log(json)
+		var htmlToAdd = ''
+		json.features.forEach(function(feature) {
+			$('#country-select').append('<option value="' + feature.properties.name + '">' + feature.properties.name + '</option>')
+		})
+		var geojson = L.geoJSON(json, {
+			style: function(feature) {
+				return {
+					fillOpacity: 0,
+					weight: 0.3
+				}
+			},
+			onEachFeature: function(feature, layer) {
+				layer.on('mouseover', function() {
+					layer.setStyle({fillOpacity: 0.3})
+
+					var points = turf.points(earthquakePointsArray)
+					var totalPoints = 0
+					// console.log(layer.feature.geometry.coordinates)
+					// var searchWithin = turf.polygon(layer.feature.geometry.coordinates)
+					// if (layer.feature.geometry.coordinates[0].length === 1) {
+					// 	layer.feature.geometry.coordinates.forEach(function(coords) {
+					// 		var searchWithin = turf.polygon(coords)
+					// 		var ptsWithin = turf.pointsWithinPolygon(points, polygon)
+					// 		totalPoints += ptsWithin.features.length
+					// 	})
+					// } else {
+					// 	var searchWithin = turf.polygon(layer.feature.geometry.coordinates)
+					// 	var ptsWithin = turf.pointsWithinPolygon(points, polygon)
+					// 	totalPoints += ptsWithin.features.length
+					// }			
+
+					$('#country-select').val(layer.feature.properties.name)
+					$('#country-info').html(layer.feature.properties.name + ' (' + layer.feature.id + ')' + totalPoints)
+				})
+				layer.on('mouseout', function() {
+					layer.setStyle({fillOpacity: 0})
+					$('#country-select').val('')
+					$('#country-info').html('')
+				})
+			}
+		}).addTo(map)
+		// map.fitBounds(geojson.getBounds())
+		// if(earthquakeJSON) {
+		// 	earthquakeJSON.bringToFront()
+		// }
+		countriesGeoJSON = geojson
+	})
+	.catch(error => console.log(error.message))
+	
+	fetch('/earthquakes.day.geojson', {
+		method: 'GET'
+	})
+	.then(response => response.json())
+	.then(json => {
+		console.log(json)
+		json.features.forEach(function(feature) {
+			earthquakePointsArray.push(feature.geometry.coordinates)
+		})
+
+		var min = 0
+		var max = 0
+		var geojson = L.geoJSON(json, {
+			style: function(feature) {
+				return {
+					fillOpacity: 0.1,
+					fillColor: '#000',
+					color: '#000',
+					opacity: 0.3
+				}
+			},
+			pointToLayer: function(geoJsonPoint, latlng) {
+				if (geoJsonPoint.properties.mag < min || min === 0) {
+					min = geoJsonPoint.properties.mag
+				}
+				if (geoJsonPoint.properties.mag > max) {
+					max = geoJsonPoint.properties.mag
+				}
+				var html = ''
+				var arrayOfProps = ['title', 'mag', 'place', 'time']
+				for (var prop in geoJsonPoint.properties) {
+					if (arrayOfProps.indexOf(prop) >= 0) {
+						html += '<strong>' + prop + '</strong>: ' + geoJsonPoint.properties[prop] + '<br />'
+					}					
+				}
+				return L.circle(latlng, geoJsonPoint.properties.mag * 50000).bindPopup(html)
+			}
+		}).addTo(map)
+		map.fitBounds(geojson.getBounds())
+		geojson.bringToFront()
+		earthquakeJSON = geojson
+
+		filters.range = [min, max]
+		var slider = document.getElementById('slider')
+		noUiSlider.create(slider, {
+			start: filters.range,
+			tooltips: true,
+			connect: true,
+			range: {
+				'min': min,
+				'max': max
+			}
+		}).on('slide', function(e) {
+			filters.range = [parseFloat(e[0]), parseFloat(e[1])]
+			earthquakeJSON.eachLayer(function(layer) {
+				// console.log(layer)
+				// console.log(Object.keys(layer))
+				if (layer.feature.properties.mag >= filters.range[0] && layer.feature.properties.mag <= filters.range[1]) {
+					// layer.addTo(map)
+					map.addLayer(layer)
+				} else {
+					// layer.remove(map)
+					map.removeLayer(layer)
+				}
+			})
+		})
+	})
+	.catch(error => console.log(error.message))
+
+	$(document).on('keyup', '#search', function(e) {
+		var userInput = e.target.value
+		filters.text = userInput
+		earthquakeJSON.eachLayer(function(layer) {
+			if (userInput != '') {
+				if (layer.feature.properties.title.toLowerCase().indexOf(userInput) >= 1) {
+					map.addLayer(layer)
+				} else {
+					map.removeLayer(layer)
+				}
+			}			
+		})
+	})
+
+	map.on('moveend', function(e) {
+		$('#current_center').html(map.getCenter().lat + ' ' + map.getCenter().lng)
+	})
+
+	$(document).on('click', '#toggleLayer', function() {
+		if (map.hasLayer(earthquakeJSON)) {
+			map.removeLayer(earthquakeJSON)
+		} else {
+			map.addLayer(earthquakeJSON)
+		}
+	})
+	
+	$(document).on('change', '#country-select', function(e) {
+		var newCountry = e.target.value
+		if (newCountry !== '') {
+			countriesGeoJSON.eachLayer(function(layer) {
+				if (layer.feature.properties.name === newCountry) {
+					// console.log(layer)
+					$('#country-info').html(layer.feature.properties.name + ' (' + layer.feature.id + ')')
+				}
+			})			
+		} else {
+			$('#country-info').html('')
+		}
+	})
+
+	// var geojson = { "type": "FeatureCollection", "features": [ { "type": "Feature", "properties": { "description": "I'm a line" }, "geometry": { "type": "LineString", "coordinates": [ [ 151.0832977294922, -33.77115672832912 ], [ 151.0184097290039, -33.80454108322877 ], [ 150.99987030029294, -33.84703735381736 ], [ 151.04827880859375, -33.85074408022877 ], [ 151.04999542236328, -33.82564925359295 ] ] } }, { "type": "Feature", "properties": { "description": "I'm a polygon" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ 151.08604431152344, -33.814240078593016 ], [ 151.12689971923828, -33.85074408022877 ], [ 151.1437225341797, -33.79141716310221 ], [ 151.1066436767578, -33.781430223803554 ], [ 151.08604431152344, -33.814240078593016 ] ] ] } }, { "type": "Feature", "properties": { "description": "I'm a marker 1" }, "geometry": { "type": "Point", "coordinates": [ 151.0668182373047, -33.84703735381736 ] } }, { "type": "Feature", "properties": { "description": "I'm a marker 2" }, "geometry": { "type": "Point", "coordinates": [ 151.09806060791016, -33.8840973792749 ] } } ] }
+
+	// var addedGeoJSON = L.geoJSON(geojson, {
+	// 	style: function(geoJsonFeature) {
+	// 		return {
+	// 			color: '#000',
+	// 			weight: 3
+	// 		}
+	// 	}
+	// 	// ,
+	// 	// pointToLayer: function(geoJsonPoint, latlng) {
+	// 	// 	return L.marker(latlng, {icon: svgIcon})
+	// 	// }
+	// 	,
+	// 	onEachFeature: function(feature, layer) {
+	// 		if(feature.geometry.type == 'Point') {
+	// 			layer.bindPopup(layer.feature.properties.description)
+	// 		}
+	// 	}
+	// })
+	// // .bindPopup(function(layer) {
+	// // 	return layer.feature.properties.description
+	// // })
+	// .addTo(map)
+
+	// // map.fitBounds(addedGeoJSON.getBounds(), {
+	// // 	padding: [5,5]
+	// // })
+
+	// map.fitBounds(addedGeoJSON.getBounds())
+
+	// var markers = [];
+	// var coordinates= [
+	// 	[-33.8840973792749, 151.08604431152344],
+	// 	[-33.8840973792749, 149.09806060791016],
+	// 	[-33, 150]
+	// ]
+
+	// coordinates.forEach(function(coords) {
+	// 	var marker = L.marker(coords, {icon: svgIcon}).on('mousemove', function(e) {
+	// 		// console.log(e)
+	// 		e.target.setIcon(svgIconRed)
+	// 	}).on('mouseout', function(e) {
+	// 		e.target.setIcon(svgIcon)
+	// 	})
+	// 	markers.push(marker)
+	// })
+
+	// var featureGroup = L.featureGroup(markers).bindPopup('hi!').addTo(map)
+
+	// coordinates.forEach(function(coords) {
+	// 	var marker = L.marker(coords, {icon: svgIcon})
+	// 	markers.push(marker)
+	// })
+
+	// var featureGroup = L.featureGroup(markers).on('mousemove', function(e) {
+	// 	console.log(e)
+	// 	e.layer.setIcon(svgIconRed)
+	// }).bindPopup('hi!').addTo(map)
+
+	// map.fitBounds(featureGroup.getBounds(), {
+	// 	padding: [20, 20]
+	// })
+
+	// map.on('mousemove', function(e) {
+	// 	var from = turf.point([e.latlng.lat, e.latlng.lng]);
+	// 	markers.forEach(function(marker) {
+	// 		var to = turf.point([marker.getLatLng().lat, marker.getLatLng().lng])
+	// 		var distance = turf.distance(from, to, {unit: 'kilometers'})
+	// 		if (distance < 50) {
+	// 			marker.setIcon(svgIconRed)
+	// 		} else {
+	// 			marker.setIcon(svgIcon)
+	// 		}
+	// 	})
+	// })
+
+	// map.on('moveend', function(e) {
+	// 	$('#current_center').val(map.getCenter().lat + ' ' + map.getCenter().lng)
+	// })
+
+	// $(document).on('click', '#toggleLayer', function() {
+	// 	if (map.hasLayer(featureGroup)) {
+	// 		map.removeLayer(featureGroup)
+	// 	} else {
+	// 		map.addLayer(featureGroup)
+	// 	}
+	// })
+
+	// var marker1 = L.marker([-33.8840973792749, 151.08604431152344], {icon: svgIcon})
+	// var marker2 = L.marker([-33.8840973792749, 149.09806060791016], {icon: svgIcon})
+	// var marker3 = L.marker([-33, 150], {icon: svgIcon})
+	// var featureGroup = L.featureGroup([marker1, marker2, marker3]).bindPopup('hi!').addTo(map)
+	// map.fitBounds(featureGroup.getBounds(), {
+	// 	padding: [20, 20]
+	// })
+
+	// var popup = L.popup();
+
+	// function onMapClick(e) {
+	// 	popup
+	// 		.setLatLng(e.latlng)
+	// 		.setContent("You clicked the map at " + e.latlng.toString())
+	// 		.openOn(mymap);
+	// }
+
+	// mymap.on('click', onMapClick);
+
+</script>
+
+
+
+</body>
+</html>
